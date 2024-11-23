@@ -55,7 +55,7 @@ def load_model():
     """Load the trained model"""
     try:
         model = tf_keras.models.load_model(
-            'Model/-1000-images-mobilenetv2-Adam',
+            'Model/-10000-images-mobilenetv2-Adam.h5',
             custom_objects={"KerasLayer": hub.KerasLayer}
         )
         return model
