@@ -6,6 +6,7 @@ import tensorflow_hub as hub
 import json
 import plotly.graph_objects as go
 import io
+import tf_keras
 # Set page configuration
 st.set_page_config(
     page_title="Dog Breed Classifier",
@@ -53,7 +54,7 @@ def load_breed_labels():
 def load_model():
     """Load the trained model"""
     try:
-        model = tf.keras.models.load_model(
+        model = tf_keras.models.load_model(
             'Model/-1000-images-mobilenetv2-Adam',
             custom_objects={"KerasLayer": hub.KerasLayer}
         )
