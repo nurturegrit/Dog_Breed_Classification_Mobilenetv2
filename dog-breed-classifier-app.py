@@ -71,55 +71,75 @@ def load_model():
 # Ensure the Custom_Images folder exists
 os.makedirs("Custom_Images", exist_ok=True)
 
+import time
+
 def fetch_image(predicted_breed):
     """
-    Fetch an image from the internet for the given breed and save it to Custom_Images folder.
+    Fetch an image from the internet for the given breed with retries and save it to Custom_Images folder.
     If the image already exists in the folder, it retrieves and returns the local image path.
 
     Args:
         predicted_breed (str): Predicted dog breed.
 
     Returns:
-        str: Path to the local image file.
+        str: Path to the local image file or None if fetching ultimately fails after retries.
     """
     try:
         # Define the image file path
         image_path = os.path.join("Custom_Images", f"{predicted_breed.replace(' ', '_')}.jpg")
-
+        
         # Check if the image already exists
         if os.path.exists(image_path):
             return image_path
 
+        # Required API key
         api_key = st.secrets["serpapi"]["api_key"]
-        # Search for the image online
-        search_query = f"{predicted_breed} dog"
-        google_image_search_url = (
-            f"https://serpapi.com/search.json?engine=google_images"
-            f"&q={search_query}&api_key={api_key}"
-        )
-        response = requests.get(google_image_search_url)
-        response.raise_for_status()
+        if not api_key:
+            st.error("API key is missing for SerpAPI.")
+            return None
+        
+        # Retries settings
+        max_retries = 5
+        delay = 2  # seconds
 
-        # Extract the first image URL
-        search_results = response.json()
-        if "images_results" in search_results and search_results["images_results"]:
-            image_url = search_results["images_results"][0]["original"]
-        else:
-            raise ValueError(f"No images found for breed: {predicted_breed}")
+        for attempt in range(max_retries):
+            try:
+                # Search for the image online
+                search_query = f"{predicted_breed} dog"
+                google_image_search_url = (
+                    f"https://serpapi.com/search.json?engine=google_images"
+                    f"&q={search_query}&api_key={api_key}"
+                )
+                response = requests.get(google_image_search_url)
+                response.raise_for_status()
 
-        # Fetch the image
-        image_response = requests.get(image_url)
-        image_response.raise_for_status()
-        image = Image.open(BytesIO(image_response.content))
+                # Extract the first image URL
+                search_results = response.json()
+                if "images_results" in search_results and search_results["images_results"]:
+                    image_url = search_results["images_results"][0].get("original")
+                    if image_url:
+                        # Fetch and save the image
+                        image_response = requests.get(image_url)
+                        image_response.raise_for_status()
+                        image = Image.open(BytesIO(image_response.content))
+                        image.save(image_path, format="JPEG")
+                        return image_path
 
-        # Save the image locally
-        image.save(image_path, format="JPEG")
-        return image_path
+                # Trigger exception if no valid URL is retrieved
+                raise ValueError(f"No images found or invalid image URL for breed: {predicted_breed}")
 
-    except Exception as e:
-        st.error(f"Error fetching image for {predicted_breed}: {e}")
+            except Exception as e:
+                st.error(f"Error fetching image for {predicted_breed} (Attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    st.info(f"Retrying in {delay} seconds...")
+                    time.sleep(delay)
+
+        st.error(f"Failed to fetch image for {predicted_breed} after {max_retries} attempts.")
         return None
 
+    except Exception as e:
+        st.error(f"Unexpected error: {e}")
+        return None
 
 def convert_to_jpeg(image):
     """
